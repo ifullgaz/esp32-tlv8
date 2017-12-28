@@ -30,19 +30,29 @@
 extern "C" {
 #endif
 
-#ifndef TLV8_H
-#define TLV8_H
+#ifndef _TLV8_H
+#define _TLV8_H
 
 #include <stdint.h>
 
+#define TLV8_VERSION_MAJ                 0
+#define TLV8_VERSION_MIN                 1
+#define TLV8_VERSION_REV                 0
+#define TLV8_VERSION_STR                 "0.1.0"
+#define TLV8_VERSION_CHK(maj, min)       ((maj==SRP_VERSION_MAJ) && (min<=SRP_VERSION_MIN))
+
 #define TLV8_ERR_OK                     0
-#define TLV8_ERR_UNKNOWN                -0x2001
-#define TLV8_ERR_ALLOC_FAILED           -0x0010
+#define TLV8_ERR_INVALID_TLV            -0x0002
+#define TLV8_ERR_TYPE_FORBIDDEN         -0x0004
+#define TLV8_ERR_MALFORMED_TLV          -0x0005
+#define TLV8_ERR_INVALID_TYPE           -0x0008
+#define TLV8_ERR_ALLOC_FAILED           -0x000A
 #define TLV8_ERR_OUT_OF_MEMORY          TLV8_ERR_ALLOC_FAILED
-#define TLV8_ERR_INVALID_TLV            -0x2002
-#define TLV8_ERR_TYPE_FORBIDDEN         -0x2002
-#define TLV8_ERR_MALFORMED_TLV          -0x2004
-#define TLV8_ERR_INVALID_TYPE           -0x2006
+
+#define ESP32_TLV8_CHK(f) \
+if (( ret = f ) != TLV8_ERR_OK) { \
+    goto cleanup; \
+}
 
 typedef enum {
     TLV8_DATA_TYPE_INTEGER,
@@ -85,7 +95,7 @@ void tlv8_free(tlv8 *tlv);
 // TLV8 codec methods
 // Create a new TLV8 codec encoder.
 tlv8_codec *tlv8_codec_encoder_new();
-// Encode a tlv on this codec
+// Add and encode a tlv on this codec
 int tlv8_codec_encode(tlv8_codec *codec, tlv8 *tlv);
 // Create a new TLV8 codec decoder.
 tlv8_codec *tlv8_codec_decoder_new(const uint8_t *data, int len);
@@ -98,7 +108,7 @@ tlv8 *tlv8_codec_decode_next_tlv(tlv8_codec *codec, TLV8_DATA_TYPE type);
 // Cleanup
 void tlv8_codec_free(tlv8_codec *codec);
 
-#endif /* Include Guard */
+#endif // _TLV8_H
 #ifdef __cplusplus
 }
 #endif

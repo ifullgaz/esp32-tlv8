@@ -227,12 +227,9 @@ static tlv8 *tlv8_codec_decode_next_tlv_integer(tlv8_codec *codec) {
 }
 
 static tlv8 *tlv8_codec_decode_next_tlv_string(tlv8_codec *codec) {
-    printf("Decoding string TLV...\n");
     tlv8 *tlv = NULL;
-    printf("Codec data: %d/%d\n", codec->pos, codec->len);
     if (tlv8_codec_decode_has_next(codec)) {
         int size = tlv8_codec_decode_data_size(codec);
-        printf("Data size: %d\n", size);
         char *str = (char *)malloc(sizeof(char) * size + 1);
         int offset = 0;
         do {
@@ -290,11 +287,12 @@ int tlv8_codec_encode(tlv8_codec *codec, tlv8 *tlv) {
     if (!codec->data) {
         codec->data = (uint8_t *)malloc(size);
     }
-    else if (tlv->type != codec->type) {
-        codec->data = (uint8_t *)realloc((void *)codec->data, codec->len + size);
+    else if (tlv->type == codec->type) {
+        // Should not encode 2 consecutive TLVs with the same type
+        return TLV8_ERR_TYPE_FORBIDDEN;
     }
     else {
-        return TLV8_ERR_TYPE_FORBIDDEN;
+        codec->data = (uint8_t *)realloc((void *)codec->data, codec->len + size);
     }
     if (!codec->data) {
         return TLV8_ERR_ALLOC_FAILED;
