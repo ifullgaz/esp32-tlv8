@@ -34,66 +34,49 @@
 #define min(a,b) ((a) < (b) ? (a) : (b))
 #define TLV8_MAX_DATA_LEN       255
 
+struct _tlv8 {
+    uint8_t             type;
+    uint32_t            len;
+    struct {
+        TLV8_DATA_TYPE  type;
+        union {
+            uint64_t    uint64;
+            buffer_t    data;
+        };
+    } data;
+};
+
+struct _tlv8_encoder {
+    uint8_t type;
+    buffer_t data;
+};
+
+struct _tlv8_decoder {
+    uint8_t type;
+    int len;
+    int pos;
+    const unsigned char *data;
+};
+
 /***********************************************************************************************************
  * TLV8
  ***********************************************************************************************************
  * Private interface
  ***********************************************************************************************************/
-static int tlv8_integer_len(uint32_t integer) {
+static int tlv8_integer_len(uint64_t integer) {
     int len = 0;
     while (integer) {
         len++;
         integer = integer >> 8;
     }
+    len-= (integer);
     return len;
 }
 
-static int tlv8_encoded_size(tlv8 *tlv) {
-    int num_fragments = tlv->len / TLV8_MAX_DATA_LEN + 1;
-    int size = (num_fragments << 1) + tlv->len; // num_fragments * (1 + 1) + tlv->len - Always 1 for type + 1 for size
-    return size;
-}
-
-static void tlv8_write_buffer_integer(int len, uint8_t type, int32_t integer, unsigned char *buffer) {
-    buffer[0] = type;
-    buffer[1] = len;
-    while (len > 0) {
-        buffer[2] = (unsigned char)integer;
-        integer = integer >> 8;
-        buffer++; len--;
-    }
-}
-
-static void tlv8_write_buffer_data(int len, uint8_t type, const void *bytes, unsigned char *buffer) {
-    int offset = 0;
-    do {
-        uint8_t size = min(len, TLV8_MAX_DATA_LEN);
-        buffer[0] = type;
-        buffer[1] = size;
-        memcpy(buffer + 2, bytes + offset, size);
-        buffer+= TLV8_MAX_DATA_LEN + 2;
-        offset+= TLV8_MAX_DATA_LEN;
-        len-= TLV8_MAX_DATA_LEN;
-    } while (len > 0);
-}
-
-static void tlv8_write_buffer(tlv8 *tlv, unsigned char *buffer) {
-    int len = tlv->len;
-    switch (tlv->data.type) {
-        case TLV8_DATA_TYPE_INTEGER:
-            tlv8_write_buffer_integer(len, tlv->type, tlv->data.int32, buffer); break;
-        case TLV8_DATA_TYPE_STRING:
-        case TLV8_DATA_TYPE_BYTES:
-            tlv8_write_buffer_data(len, tlv->type, tlv->data.bytes, buffer); break;
-        default:
-            break;
-    }
-}
-
-static tlv8 *tlv8_new(uint8_t type) {
-    tlv8 *tlv = (tlv8 *)malloc(sizeof(tlv8));
+static tlv8_t tlv8_new(uint8_t type) {
+    tlv8_t tlv = (tlv8_t)malloc(sizeof(struct _tlv8));
     if (tlv) {
-        memset(tlv, 0, sizeof(tlv8));
+        memset(tlv, 0, sizeof(struct _tlv8));
         tlv->type = type;
     }
     return tlv;
@@ -102,249 +85,324 @@ static tlv8 *tlv8_new(uint8_t type) {
 /***********************************************************************************************************
  * Public interface
  ***********************************************************************************************************/
-tlv8 *tlv8_new_with_integer(uint8_t type, int32_t integer) {
-    tlv8 *tlv = tlv8_new(type);
+tlv8_t tlv8_new_with_integer(uint8_t type, uint64_t integer) {
+    tlv8_t tlv = tlv8_new(type);
     if (tlv) {
         tlv->data.type = TLV8_DATA_TYPE_INTEGER;
-        tlv->data.int32 = integer;
-        tlv->len = tlv8_integer_len((uint32_t)integer);
+        tlv->data.uint64 = integer;
+        tlv->len = tlv8_integer_len(integer);
     }
     return tlv;
 }
 
-tlv8 *tlv8_new_with_string(uint8_t type, const char *string) {
-    if (!string) {
-        return NULL;
-    }
-    int str_len = strlen(string);
-    tlv8 *tlv = tlv8_new(type);
-    if (tlv && str_len) {
-        tlv->data.type = TLV8_DATA_TYPE_STRING;
-        tlv->data.string = strdup(string);
-        if (!tlv->data.string) {
-            tlv8_free(tlv);
-            return NULL;
-        }
-        tlv->len = str_len;
-    }
-    return tlv;
-}
-
-tlv8 *tlv8_new_with_data(uint8_t type, void *data, int data_len) {
+tlv8_t tlv8_new_with_data(uint8_t type, void *data, int data_len) {
     if (!data || !data_len) {
         return NULL;
     }
-    tlv8 *tlv = tlv8_new(type);
+    tlv8_t tlv = tlv8_new(type);
+    tlv->data.type = TLV8_DATA_TYPE_BYTES;
     if (tlv && data_len) {
-        tlv->data.type = TLV8_DATA_TYPE_BYTES;
-        tlv->data.bytes = malloc(data_len);
-        if (!tlv->data.bytes) {
+        tlv->data.data = buffer_new(data_len);
+        if (!tlv->data.data) {
             tlv8_free(tlv);
             return NULL;
         }
-        memcpy(tlv->data.bytes, data, data_len);
+        buffer_append(tlv->data.data, data, data_len, 0);
         tlv->len = data_len;
     }
     return tlv;
 }
 
-void tlv8_free(tlv8 *tlv) {
-    if (tlv) {
-        if (tlv->data.type > TLV8_DATA_TYPE_INTEGER && tlv->len) {
-            free (tlv->data.bytes);
-        }
-        free(tlv);
+tlv8_t tlv8_new_with_string(uint8_t type, const char *string) {
+    if (!string) {
+        return NULL;
     }
+    int str_len = strlen(string);
+    tlv8_t tlv = tlv8_new_with_data(type, (void *)string, str_len);
+    if (tlv) {
+        tlv->data.type = TLV8_DATA_TYPE_STRING;
+    }
+    return tlv;
+}
+
+tlv8_t tlv8_new_with_buffer(uint8_t type, buffer_t data) {
+    if (!data) {
+        return NULL;
+    }
+    return tlv8_new_with_data(type, (void *)buffer_get_data(data), buffer_get_length(data));    
+}
+
+void tlv8_free(void *t) {
+    tlv8_t tlv = (tlv8_t)t;
+    if (tlv) {
+        if (tlv->data.type != TLV8_DATA_TYPE_INTEGER) {
+            buffer_free(tlv->data.data);
+        }
+        free(t);
+    }
+}
+
+uint8_t tlv8_get_type(tlv8_t tlv) {
+    return tlv->type;
+}
+
+uint64_t tlv8_get_integer_value(tlv8_t tlv) {
+    return tlv->data.uint64;
+}
+
+const char *tlv8_get_string_value(tlv8_t tlv) {
+    return (const char *)buffer_get_data(tlv->data.data);
+}
+buffer_t tlv8_get_data_value(tlv8_t tlv) {
+    return (buffer_t)tlv->data.data;
 }
 
 /***********************************************************************************************************
- * TLV Codec
+ * TLV Encoder
  ***********************************************************************************************************
  * Private interface
  ***********************************************************************************************************/
-static tlv8_codec *tlv8_codec_new(const uint8_t *data, int len) {
-    tlv8_codec *codec = (tlv8_codec *)malloc(sizeof(tlv8_codec));
-    if (codec) {
-        memset(codec, 0, sizeof(tlv8_codec));
-        if (len) {
-            codec->data = malloc(len);
-            if (!codec->data) {
-                tlv8_codec_free(codec);
-                return NULL;
-            }
-            memcpy(codec->data, data, len);
-            codec->len = len;
-        }
-    }
-    return codec;
-}
-
-static uint8_t tlv8_codec_decode_get_type_and_advance(tlv8_codec *codec) {
-    return codec->data[codec->pos++];
-}
-
-static int tlv8_codec_decode_get_size_and_advance(tlv8_codec *codec) {
-    return codec->data[codec->pos++];
-}
-
-static int tlv8_codec_decode_data_size(tlv8_codec *codec) {
-    int size = 0;
-    int start_pos = codec->pos;
-    while (tlv8_codec_decode_has_next(codec)) {
-        uint8_t type = tlv8_codec_decode_get_type_and_advance(codec);
-        if (type != codec->type) {
-            goto cleanup;
-        }
-        int len = tlv8_codec_decode_get_size_and_advance(codec);
-        size+= len;
-        // Jump to next TLV if any
-        codec->pos+= len;
-    }
-cleanup:
-    // Restore initial pointer to type of TLV
-    codec->pos = start_pos;
+static int tlv8_encoded_size(int len) {
+    int num_fragments = len / TLV8_MAX_DATA_LEN + 1;
+    int size = (num_fragments << 1) + len; // 2 bytes * num_fragments + tlv->len - Always 1 for type + 1 for size
     return size;
 }
 
-static tlv8 *tlv8_codec_decode_next_tlv_integer(tlv8_codec *codec) {
-    tlv8 *tlv = NULL;
-    if (tlv8_codec_decode_has_next(codec)) {
-        uint32_t integer = 0;
-        do {
-            uint8_t type = tlv8_codec_decode_get_type_and_advance(codec);
-            if (type != codec->type) {
-                codec->pos--;
-                break;
-            }
-            int size = tlv8_codec_decode_get_size_and_advance(codec);
-            for (int i = 0; i < size; i++) {
-                integer = integer | ((uint8_t)codec->data[codec->pos++] << (8 * i));
-            }
-        } while (0);
-        tlv = tlv8_new_with_integer(codec->type, integer);
+static void tlv8_encoder_write_buffer_integer(tlv8_encoder_t codec, tlv8_t tlv) {
+    uint8_t len = tlv->len;
+    uint64_t integer = tlv->data.uint64;
+    buffer_append(codec->data, &(tlv->type), 1, 0);
+    buffer_append(codec->data, &len, 1, 0);
+    while (len > 0) {
+        // Little endian
+        unsigned char val = (unsigned char)integer;
+        buffer_append(codec->data, &val, 1, 0);
+        integer = integer >> 8;
+        len--;
     }
-    return tlv;
 }
 
-static tlv8 *tlv8_codec_decode_next_tlv_string(tlv8_codec *codec) {
-    tlv8 *tlv = NULL;
-    if (tlv8_codec_decode_has_next(codec)) {
-        int size = tlv8_codec_decode_data_size(codec);
-        char *str = (char *)malloc(sizeof(char) * size + 1);
-        int offset = 0;
-        do {
-            uint8_t type = tlv8_codec_decode_get_type_and_advance(codec);
-            if (type != codec->type) {
-                codec->pos--;
-                break;
-            }
-            int len = tlv8_codec_decode_get_size_and_advance(codec);
-            memcpy(str + offset, codec->data + codec->pos, len);
-            offset+= len;
-            codec->pos+= len;
-        } while (tlv8_codec_decode_has_next(codec));
-        str[size] = '\0';
-        tlv = tlv8_new_with_string(codec->type, str);
-        free(str);
-    }
-    return tlv;
+static void tlv8_encoder_write_buffer_data(tlv8_encoder_t codec, tlv8_t tlv) {
+    int len = tlv->len;
+    const unsigned char *data = buffer_get_data(tlv->data.data);
+    int offset = 0;
+    do {
+        uint8_t size = min(len, TLV8_MAX_DATA_LEN);
+        buffer_append(codec->data, &(tlv->type), 1, 0);
+        buffer_append(codec->data, &size, 1, 0);
+        buffer_append(codec->data, (data + offset), size, 0);
+        offset+= TLV8_MAX_DATA_LEN;
+        len-= TLV8_MAX_DATA_LEN;
+    } while (len > 0);
 }
 
-static tlv8 *tlv8_codec_decode_next_tlv_data(tlv8_codec *codec) {
-    tlv8 *tlv = NULL;
-    if (tlv8_codec_decode_has_next(codec)) {
-        int size = tlv8_codec_decode_data_size(codec);
-        char *data = (char *)malloc(sizeof(char) * size);
-        int offset = 0;
-        do {
-            uint8_t type = tlv8_codec_decode_get_type_and_advance(codec);
-            if (type != codec->type) {
-                codec->pos--;
-                break;
-            }
-            int len = tlv8_codec_decode_get_size_and_advance(codec);
-            memcpy(data, codec->data + codec->pos, len);
-            offset+= len;
-            codec->pos+= len;
-        } while (tlv8_codec_decode_has_next(codec));
-        tlv = tlv8_new_with_data(codec->type, data, size);
-        free(data);
+static void tlv8_encoder_write_buffer(tlv8_encoder_t codec, tlv8_t tlv) {
+    switch (tlv->data.type) {
+        case TLV8_DATA_TYPE_INTEGER:
+            tlv8_encoder_write_buffer_integer(codec, tlv); break;
+        case TLV8_DATA_TYPE_STRING:
+        case TLV8_DATA_TYPE_BYTES:
+            tlv8_encoder_write_buffer_data(codec, tlv); break;
+        default:
+            break;
     }
-    return tlv;
 }
 
 /***********************************************************************************************************
  * Public interface
- ***********************************************************************************************************
- * Encoder
  ***********************************************************************************************************/
-tlv8_codec *tlv8_codec_encoder_new() {
-    return tlv8_codec_new(NULL, 0);
+tlv8_encoder_t tlv8_encoder_new(buffer_t buffer) {
+    tlv8_encoder_t codec = (tlv8_encoder_t)malloc(sizeof(struct _tlv8_encoder));
+    if (codec) {
+        memset(codec, 0, sizeof(struct _tlv8_encoder));
+        codec->data = buffer;
+    }
+    return codec;
 }
 
-int tlv8_codec_encode(tlv8_codec *codec, tlv8 *tlv) {
-    int size = tlv8_encoded_size(tlv);
+int tlv8_encoder_encode(tlv8_encoder_t codec, tlv8_t tlv) {
+    int size = tlv8_encoded_size(tlv->len);
     if (!codec->data) {
-        codec->data = (uint8_t *)malloc(size);
+        codec->data = buffer_new(size);
+        if (!codec->data) {
+            return TLV8_ERR_ALLOC_FAILED;
+        }
     }
     else if (tlv->type == codec->type) {
         // Should not encode 2 consecutive TLVs with the same type
         return TLV8_ERR_TYPE_FORBIDDEN;
     }
     else {
-        codec->data = (uint8_t *)realloc((void *)codec->data, codec->len + size);
+        if (buffer_growby(codec->data, size, 0) != UTILS_ERR_OK) {
+            return TLV8_ERR_ALLOC_FAILED;
+        }
     }
-    if (!codec->data) {
-        return TLV8_ERR_ALLOC_FAILED;
-    }
-    tlv8_write_buffer(tlv, (unsigned char*)codec->data + codec->len);
-    codec->len+= size;
+    tlv8_encoder_write_buffer(codec, tlv);
     codec->type = tlv->type;
     return TLV8_ERR_OK;
 }
 
-/***********************************************************************************************************
- * Decoder
- ***********************************************************************************************************/
-tlv8_codec *tlv8_codec_decoder_new(const uint8_t *data, int len) {
-    if (!data || !len) {
-        return NULL;
-    }
-    return tlv8_codec_new(data, len);
+// Get data buffer
+buffer_t tlv8_encoder_get_data(tlv8_encoder_t codec) {
+    return codec->data;
 }
 
-int tlv8_codec_decode_has_next(tlv8_codec *codec) {
+// Detach data buffer
+buffer_t tlv8_encoder_detach_data(tlv8_encoder_t codec) {
+    buffer_t data = codec->data;
+    codec->data = NULL;
+    return data;
+}
+
+// Cleanup
+void tlv8_encoder_free(void *c) {
+    tlv8_encoder_t codec = (tlv8_encoder_t)c;
+    if (codec) {
+        free(c);
+    }
+}
+/***********************************************************************************************************
+ * TLV Decoder
+ ***********************************************************************************************************
+ * Private interface
+ ***********************************************************************************************************/
+static uint8_t tlv8_decoder_get_type_and_advance(tlv8_decoder_t codec) {
+    return codec->data[codec->pos++];
+}
+
+static uint8_t tlv8_decoder_get_size_and_advance(tlv8_decoder_t codec) {
+    return codec->data[codec->pos++];
+}
+
+static int tlv8_decoder_data_size(tlv8_decoder_t codec) {
+    int size = 0;
+    int start_pos = codec->pos;
+    do {
+        uint8_t type = tlv8_decoder_get_type_and_advance(codec);
+        if (type != codec->type) {
+            goto cleanup;
+        }
+        int len = tlv8_decoder_get_size_and_advance(codec);
+        size+= len;
+        // Jump to next TLV if any
+        codec->pos+= len;
+    } while (tlv8_decoder_has_next(codec));
+cleanup:
+    // Restore initial pointer to type of TLV
+    codec->pos = start_pos;
+    return size;
+}
+
+static tlv8_t tlv8_decoder_next_tlv_integer(tlv8_decoder_t codec) {
+    uint64_t integer = 0;
+    tlv8_decoder_get_type_and_advance(codec);
+    int size = tlv8_decoder_get_size_and_advance(codec);
+    for (int i = 0; i < size; i++) {
+        uint8_t byte = codec->data[codec->pos++];
+        integer = integer | ((uint64_t)byte << (8 * i));
+    }
+    return tlv8_new_with_integer(codec->type, integer);
+}
+
+static tlv8_t tlv8_decoder_next_tlv_data(tlv8_decoder_t codec) {
+    tlv8_t tlv = NULL;
+    int size = tlv8_decoder_data_size(codec);
+    int num_fragments = size / TLV8_MAX_DATA_LEN + 1;
+    char *data = malloc(size);
+    int offset = 0;
+    for (int i = 0; i < num_fragments; i++) {
+        tlv8_decoder_get_type_and_advance(codec);
+        uint8_t len = tlv8_decoder_get_size_and_advance(codec);
+        memcpy(data + offset, codec->data + codec->pos, len);
+        offset+= len;
+        codec->pos+= len;
+    };
+    tlv = tlv8_new_with_data(codec->type, data, size);
+    free(data);
+    return tlv;
+}
+
+static tlv8_t tlv8_decoder_next_tlv_string(tlv8_decoder_t codec) {
+    tlv8_t tlv = tlv8_decoder_next_tlv_data(codec);
+    if (tlv) {
+        tlv->data.type = TLV8_DATA_TYPE_STRING;
+    }
+    return tlv;
+}
+
+/***********************************************************************************************************
+ * Public interface
+ ***********************************************************************************************************/
+tlv8_decoder_t tlv8_decoder_new(buffer_t data) {
+    if (!data) {
+        return NULL;
+    }
+    tlv8_decoder_t codec = (tlv8_decoder_t)malloc(sizeof(struct _tlv8_decoder));
+    if (codec) {
+        memset(codec, 0, sizeof(struct _tlv8_decoder));
+        codec->data = buffer_get_data(data);
+        codec->len = buffer_get_length(data);
+    }
+    return codec;
+}
+
+int tlv8_decoder_has_next(tlv8_decoder_t codec) {
     return codec->pos < codec->len;
 }
 
-uint8_t tlv8_codec_decode_peek_type(tlv8_codec *codec) {
+uint8_t tlv8_decoder_peek_type(tlv8_decoder_t codec) {
     codec->type = codec->data[codec->pos];
     return codec->type;
 }
 
-tlv8 *tlv8_codec_decode_next_tlv(tlv8_codec *codec, TLV8_DATA_TYPE type) {
-    if (!tlv8_codec_decode_has_next(codec)) {
-        printf("Oh oh...\n");
+tlv8_t tlv8_decoder_decode(tlv8_decoder_t codec, TLV8_DATA_TYPE type) {
+    if (!tlv8_decoder_has_next(codec)) {
         return NULL;
     }
     switch (type) {
         case TLV8_DATA_TYPE_INTEGER:
-            return tlv8_codec_decode_next_tlv_integer(codec);
+            return tlv8_decoder_next_tlv_integer(codec);
         case TLV8_DATA_TYPE_STRING:
-            return tlv8_codec_decode_next_tlv_string(codec);
+            return tlv8_decoder_next_tlv_string(codec);
         case TLV8_DATA_TYPE_BYTES:
-            return tlv8_codec_decode_next_tlv_data(codec);
+            return tlv8_decoder_next_tlv_data(codec);
         default:
             // Nothing to return, we don't know that type
             return NULL;
     }
 }
 
-void tlv8_codec_free(tlv8_codec *codec) {
+void tlv8_decoder_free(void *c) {
+    tlv8_decoder_t codec = (tlv8_decoder_t)c;
     if (codec) {
-        if (codec->data) {
-            free (codec->data);
-        }
-        free(codec);
+        free(c);
     }
 }
+
+/***********************************************************************************************************
+ * Convenience methods
+ ***********************************************************************************************************/
+buffer_t tlv8_encode(const array_t array) {
+    tlv8_encoder_t codec = tlv8_encoder_new(NULL);
+    for (int i = 0; i < array_count(array); i++) {
+        tlv8_t tlv = (tlv8_t)array_at(array, i);
+        tlv8_encoder_encode(codec, tlv);
+    }
+    return tlv8_encoder_detach_data(codec);
+}
+
+array_t tlv8_decode(const buffer_t buffer, const uint8_t *mapping) {
+    array_t array = array_new(tlv8_free);
+    tlv8_decoder_t decoder = tlv8_decoder_new(buffer);
+    while (tlv8_decoder_has_next(decoder)) {
+        uint8_t type = tlv8_decoder_peek_type(decoder);
+        TLV8_DATA_TYPE data_type = mapping[type];
+        tlv8_t tlv = tlv8_decoder_decode(decoder, data_type);
+        if (tlv) {
+            array_push(array, tlv);
+        }
+    }
+    tlv8_decoder_free(decoder);
+    return array;
+}
+

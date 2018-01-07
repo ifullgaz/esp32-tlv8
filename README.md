@@ -7,13 +7,20 @@ It can be dropped as is as a component in an ESP-IDF project.
 Installation
 ------------
 
-Extract or clone the module directly into the components directory of your project
+esp32-tlv8 is now dependant on [esp32-utils] (https://github.com/ifullgaz/esp32-utils).  
+Clone the module directly into the components directory of your project.
+
+```git clone https://github.com/ifullgaz/esp32-tlv8```
+
+To run the test, also clone the dependancies into the components directory of the test app
+
+```git submodule update --init```
 
 Test
 ----
 
 The test can be ran from the command line as a normal ESP-IDF project.
-Simply run ```make flash``` to run on a connected esp32 board.
+Simply run ```make flash monitor``` to run on a connected esp32 board.
 
 Usage
 -----

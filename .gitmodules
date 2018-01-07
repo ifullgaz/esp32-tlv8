@@ -1,0 +1,3 @@
+[submodule "test/components/esp32-utils"]
+	path = test/components/esp32-utils
+	url = https://github.com/ifullgaz/esp32-utils

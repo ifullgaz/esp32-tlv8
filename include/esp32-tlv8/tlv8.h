@@ -34,12 +34,13 @@ extern "C" {
 #define _TLV8_H
 
 #include <stdint.h>
+#include "esp32-utils/utils.h"
 
 #define TLV8_VERSION_MAJ                 0
-#define TLV8_VERSION_MIN                 1
+#define TLV8_VERSION_MIN                 2
 #define TLV8_VERSION_REV                 0
-#define TLV8_VERSION_STR                 "0.1.0"
-#define TLV8_VERSION_CHK(maj, min)       ((maj==SRP_VERSION_MAJ) && (min<=SRP_VERSION_MIN))
+#define TLV8_VERSION_STR                 "0.2.0"
+#define TLV8_VERSION_CHK(maj, min)       ((maj==TLV8_VERSION_MAJ) && (min<=TLV8_VERSION_MIN))
 
 #define TLV8_ERR_OK                     0
 #define TLV8_ERR_INVALID_TLV            -0x0002
@@ -61,52 +62,53 @@ typedef enum {
 } TLV8_DATA_TYPE;
 
 struct _tlv8;
-typedef struct _tlv8 tlv8;
-typedef struct _tlv8 {
-    uint8_t             type;
-    uint32_t            len;
-    struct {
-        TLV8_DATA_TYPE  type;
-        union {
-            int32_t     int32;
-            void        *bytes;
-            char        *string;
-        };
-    } data;
-} tlv8;
-
-typedef struct _tlv8_codec {
-    uint8_t type;
-    uint8_t *data;
-    int len;
-    int pos;
-} tlv8_codec;
+typedef struct _tlv8 *tlv8_t;
+typedef struct _tlv8_encoder *tlv8_encoder_t;
+typedef struct _tlv8_decoder *tlv8_decoder_t;
 
 // TLV8 methods
 // Create a new TLV8 structure from integer
-tlv8 *tlv8_new_with_integer(uint8_t type, int32_t integer);
+tlv8_t tlv8_new_with_integer(uint8_t type, uint64_t integer);
 // Create a new TLV8 structure from string
-tlv8 *tlv8_new_with_string(uint8_t type, const char *string);
+tlv8_t tlv8_new_with_string(uint8_t type, const char *string);
 // Create a new TLV8 structure from data
-tlv8 *tlv8_new_with_data(uint8_t type, void *data, int data_len);
+tlv8_t tlv8_new_with_data(uint8_t type, void *data, int data_len);
+// Create a new TLV8 structure from buffer (type TLV8_DATA_TYPE_BYTES)
+tlv8_t tlv8_new_with_buffer(uint8_t type, buffer_t data);
+// Getters
+uint8_t tlv8_get_type(tlv8_t tlv);
+uint64_t tlv8_get_integer_value(tlv8_t tlv);
+const char *tlv8_get_string_value(tlv8_t tlv);
+buffer_t tlv8_get_data_value(tlv8_t tlv);
 // Cleanup
-void tlv8_free(tlv8 *tlv);
+void tlv8_free(void *tlv);
 
 // TLV8 codec methods
 // Create a new TLV8 codec encoder.
-tlv8_codec *tlv8_codec_encoder_new();
+tlv8_encoder_t tlv8_encoder_new(buffer_t buffer);
 // Add and encode a tlv on this codec
-int tlv8_codec_encode(tlv8_codec *codec, tlv8 *tlv);
-// Create a new TLV8 codec decoder.
-tlv8_codec *tlv8_codec_decoder_new(const uint8_t *data, int len);
-// Returns true if there are more tlvs to decode
-int tlv8_codec_decode_has_next(tlv8_codec *codec);
-// Returns the type of the next tlv
-uint8_t tlv8_codec_decode_peek_type(tlv8_codec *codec);
-// Returns a TLV of appropriate type form the next TLV data
-tlv8 *tlv8_codec_decode_next_tlv(tlv8_codec *codec, TLV8_DATA_TYPE type);
+int tlv8_encoder_encode(tlv8_encoder_t codec, tlv8_t tlv);
+// Get data buffer
+buffer_t tlv8_encoder_get_data(tlv8_encoder_t codec);
+// Detach data buffer
+buffer_t tlv8_encoder_detach_data(tlv8_encoder_t codec);
 // Cleanup
-void tlv8_codec_free(tlv8_codec *codec);
+void tlv8_encoder_free(void *codec);
+
+// Create a new TLV8 codec decoder.
+tlv8_decoder_t tlv8_decoder_new(buffer_t data);
+// Returns true if there are more tlvs to decode
+int tlv8_decoder_has_next(tlv8_decoder_t codec);
+// Returns the type of the next tlv
+uint8_t tlv8_decoder_peek_type(tlv8_decoder_t codec);
+// Returns a TLV of appropriate type form the next TLV data
+tlv8_t tlv8_decoder_decode(tlv8_decoder_t codec, TLV8_DATA_TYPE type);
+// Cleanup
+void tlv8_decoder_free(void *codec);
+
+// Convenience methods
+buffer_t tlv8_encode(const array_t array);
+array_t tlv8_decode(const buffer_t buffer, const uint8_t *mapping);
 
 #endif // _TLV8_H
 #ifdef __cplusplus

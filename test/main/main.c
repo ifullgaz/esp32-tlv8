@@ -31,179 +31,160 @@
 
 #include "esp32-tlv8/tlv8.h"
 
-void dump_data(const void* data, size_t size, const char *description) {
-	char ascii[17];
-	size_t i, j;
-	ascii[16] = '\0';
-	if (description) {
-		printf("%s\n", description);
-	}
-	if (!data || !size) {
-		printf("NULL\n");
-		return;
-	}
-	for (i = 0; i < size; ++i) {
-		printf("%02X ", ((unsigned char*)data)[i]);
-		if (((unsigned char*)data)[i] >= ' ' && ((unsigned char*)data)[i] <= '~') {
-			ascii[i % 16] = ((unsigned char*)data)[i];
-		} else {
-			ascii[i % 16] = '.';
-		}
-		if ((i+1) % 8 == 0 || i+1 == size) {
-			printf(" ");
-			if ((i+1) % 16 == 0) {
-				printf("|  %s \n", ascii);
-			} else if (i+1 == size) {
-				ascii[(i+1) % 16] = '\0';
-				if ((i+1) % 16 <= 8) {
-					printf(" ");
-				}
-				for (j = (i+1) % 16; j < 16; ++j) {
-					printf("   ");
-				}
-				printf("|  %s \n", ascii);
-			}
-		}
-	}
-	if (description) {
-		printf("End\n");
-	}
-}
-
 static const uint8_t data_types[] = {
-    TLV8_DATA_TYPE_INTEGER, 0, TLV8_DATA_TYPE_INTEGER, 0, TLV8_DATA_TYPE_INTEGER, TLV8_DATA_TYPE_INTEGER, TLV8_DATA_TYPE_INTEGER, TLV8_DATA_TYPE_STRING,
-    TLV8_DATA_TYPE_STRING, TLV8_DATA_TYPE_BYTES, TLV8_DATA_TYPE_STRING
+    0,
+    TLV8_DATA_TYPE_INTEGER,
+    TLV8_DATA_TYPE_INTEGER,
+    TLV8_DATA_TYPE_INTEGER,
+    TLV8_DATA_TYPE_INTEGER,
+    TLV8_DATA_TYPE_INTEGER,
+    TLV8_DATA_TYPE_INTEGER,
+    TLV8_DATA_TYPE_STRING,
+    TLV8_DATA_TYPE_STRING,
+    TLV8_DATA_TYPE_BYTES,
+    TLV8_DATA_TYPE_STRING
 };
 
-void app_main() {
-    tlv8 *tlv1, *tlv2;
-    tlv8_codec *codec, *full_codec;
+static void dump_buffer(buffer_t buffer, const char *description) {
+    dump_data(buffer_get_data(buffer), buffer_get_length(buffer), description);
+}
 
-    full_codec = tlv8_codec_encoder_new();
+static void dump_codec(tlv8_encoder_t codec, const char *description) {
+    buffer_t buffer = tlv8_encoder_get_data(codec);
+    dump_buffer(buffer, description);
+}
+
+void app_main() {
+    tlv8_t tlv1, tlv2;
+    tlv8_encoder_t codec, full_codec;
+    tlv8_decoder_t decoder;
+
+    full_codec = tlv8_encoder_new(NULL);
     tlv1 = tlv8_new_with_integer(1, 0x00000000);
-    codec = tlv8_codec_encoder_new();
-    tlv8_codec_encode(codec, tlv1);
-    tlv8_codec_encode(full_codec, tlv1);
+    codec = tlv8_encoder_new(NULL);
+    tlv8_encoder_encode(codec, tlv1);
+    tlv8_encoder_encode(full_codec, tlv1);
     tlv8_free(tlv1);
-    dump_data(codec->data, codec->len, "codec");
-    tlv8_codec_free(codec);
+    dump_codec(codec, "TLV 1");
+    tlv8_encoder_free(codec);
 
     tlv1 = tlv8_new_with_integer(2, 0x00000001);
-    codec = tlv8_codec_encoder_new();
-    tlv8_codec_encode(codec, tlv1);
-    tlv8_codec_encode(full_codec, tlv1);
+    codec = tlv8_encoder_new(NULL);
+    tlv8_encoder_encode(codec, tlv1);
+    tlv8_encoder_encode(full_codec, tlv1);
     tlv8_free(tlv1);
-    dump_data(codec->data, codec->len, "codec");
-    tlv8_codec_free(codec);
+    dump_codec(codec, "TLV 2");
+    tlv8_encoder_free(codec);
 
     tlv1 = tlv8_new_with_integer(3, 0x00FF0000);
-    codec = tlv8_codec_encoder_new();
-    tlv8_codec_encode(codec, tlv1);
-    tlv8_codec_encode(full_codec, tlv1);
+    codec = tlv8_encoder_new(NULL);
+    tlv8_encoder_encode(codec, tlv1);
+    tlv8_encoder_encode(full_codec, tlv1);
     tlv8_free(tlv1);
-    dump_data(codec->data, codec->len, "codec");
-    tlv8_codec_free(codec);
+    dump_codec(codec, "TLV 3");
+    tlv8_encoder_free(codec);
 
     tlv1 = tlv8_new_with_integer(4, 0x0000FFFF);
-    codec = tlv8_codec_encoder_new();
-    tlv8_codec_encode(codec, tlv1);
-    tlv8_codec_encode(full_codec, tlv1);
+    codec = tlv8_encoder_new(NULL);
+    tlv8_encoder_encode(codec, tlv1);
+    tlv8_encoder_encode(full_codec, tlv1);
     tlv8_free(tlv1);
-    dump_data(codec->data, codec->len, "codec");
-    tlv8_codec_free(codec);
+    dump_codec(codec, "TLV 4");
+    tlv8_encoder_free(codec);
 
     tlv1 = tlv8_new_with_integer(5, 0xFFFF0000);
-    codec = tlv8_codec_encoder_new();
-    tlv8_codec_encode(codec, tlv1);
-    tlv8_codec_encode(full_codec, tlv1);
+    codec = tlv8_encoder_new(NULL);
+    tlv8_encoder_encode(codec, tlv1);
+    tlv8_encoder_encode(full_codec, tlv1);
     tlv8_free(tlv1);
-    dump_data(codec->data, codec->len, "codec");
-    tlv8_codec_free(codec);
+    dump_codec(codec, "TLV 5");
+    tlv8_encoder_free(codec);
 
     tlv1 = tlv8_new_with_integer(6, 0xFFFFFFFF);
-    codec = tlv8_codec_encoder_new();
-    tlv8_codec_encode(codec, tlv1);
-    tlv8_codec_encode(full_codec, tlv1);
+    codec = tlv8_encoder_new(NULL);
+    tlv8_encoder_encode(codec, tlv1);
+    tlv8_encoder_encode(full_codec, tlv1);
     tlv8_free(tlv1);
-    dump_data(codec->data, codec->len, "codec");
-    tlv8_codec_free(codec);
+    dump_codec(codec, "TLV 6");
+    tlv8_encoder_free(codec);
 
     tlv1 = tlv8_new_with_string(7, "Hello");
-    codec = tlv8_codec_encoder_new();
-    tlv8_codec_encode(codec, tlv1);
-    tlv8_codec_encode(full_codec, tlv1);
+    codec = tlv8_encoder_new(NULL);
+    tlv8_encoder_encode(codec, tlv1);
+    tlv8_encoder_encode(full_codec, tlv1);
     tlv8_free(tlv1);
-    dump_data(codec->data, codec->len, "codec");
-    tlv8_codec_free(codec);
+    dump_codec(codec, "TLV 7");
+    tlv8_encoder_free(codec);
 
     tlv1 = tlv8_new_with_string(8, "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.");
-    codec = tlv8_codec_encoder_new();
-    tlv8_codec_encode(codec, tlv1);
-    tlv8_codec_encode(full_codec, tlv1);
+    codec = tlv8_encoder_new(NULL);
+    tlv8_encoder_encode(codec, tlv1);
+    tlv8_encoder_encode(full_codec, tlv1);
     tlv8_free(tlv1);
-    dump_data(codec->data, codec->len, "codec");
-    tlv8_codec_free(codec);
+    dump_codec(codec, "TLV 8");
+    tlv8_encoder_free(codec);
 
     tlv2 = tlv8_new_with_string(10, "Hello");
-    codec = tlv8_codec_encoder_new();
-    tlv8_codec_encode(codec, tlv2);
-    dump_data(codec->data, codec->len, "codec");
-    tlv1 = tlv8_new_with_data(9, codec->data, codec->len);
-    tlv8_codec_free(codec);
+    codec = tlv8_encoder_new(NULL);
+    tlv8_encoder_encode(codec, tlv2);
+    dump_codec(codec, "TLV 10");
+    tlv1 = tlv8_new_with_buffer(9, tlv8_encoder_get_data(codec));
+    tlv8_encoder_free(codec);
     tlv8_free(tlv2);
-    codec = tlv8_codec_encoder_new();
-    tlv8_codec_encode(codec, tlv1);
-    tlv8_codec_encode(full_codec, tlv1);
-    dump_data(codec->data, codec->len, "codec");
+    codec = tlv8_encoder_new(NULL);
+    tlv8_encoder_encode(codec, tlv1);
+    tlv8_encoder_encode(full_codec, tlv1);
+    dump_codec(codec, "TLV 9");
     tlv8_free(tlv1);
 
-    codec = tlv8_codec_encoder_new();
+    codec = tlv8_encoder_new(NULL);
     tlv1 = tlv8_new_with_string(16, "Hello");
-    tlv8_codec_encode(codec, tlv1);
+    tlv8_encoder_encode(codec, tlv1);
     tlv8_free(tlv1);
     tlv1 = tlv8_new_with_string(17, "Hello");
-    tlv8_codec_encode(codec, tlv1);
+    tlv8_encoder_encode(codec, tlv1);
     tlv8_free(tlv1);
-    dump_data(codec->data, codec->len, "codec");
-    tlv8_codec_free(codec);
+    dump_codec(codec, "TLV 16 + TLV 17");
+    tlv8_encoder_free(codec);
 
-    codec = tlv8_codec_encoder_new();
+    // Two TLVs can't have the same type. Second one is ignored
+    codec = tlv8_encoder_new(NULL);
     tlv1 = tlv8_new_with_string(32, "Hello");
-    tlv8_codec_encode(codec, tlv1);
+    tlv8_encoder_encode(codec, tlv1);
     tlv8_free(tlv1);
     tlv1 = tlv8_new_with_string(32, "Hello");
-    tlv8_codec_encode(codec, tlv1);
+    tlv8_encoder_encode(codec, tlv1);
     tlv8_free(tlv1);
-    dump_data(codec->data, codec->len, "codec");
-    tlv8_codec_free(codec);
+    dump_codec(codec, "TLV 32");
+    tlv8_encoder_free(codec);
 
-    dump_data(full_codec->data, full_codec->len, "---------------- Full codec");
-    printf("Type: %0x, Len: %d, Pos: %d\n", full_codec->type, full_codec->len, full_codec->pos);
+    dump_codec(full_codec, "-------------- Full Codec");
 
+    decoder = tlv8_decoder_new(tlv8_encoder_get_data(full_codec));
     // At that point, full_codec contains all the TLVs created so far
-    while (tlv8_codec_decode_has_next(full_codec)) {
-        uint8_t type = tlv8_codec_decode_peek_type(full_codec);
+    while (tlv8_decoder_has_next(decoder)) {
+        uint8_t type = tlv8_decoder_peek_type(decoder);
         TLV8_DATA_TYPE data_type = data_types[type];
-        tlv8 *tlv = tlv8_codec_decode_next_tlv(full_codec, data_type);
+        tlv8_t tlv = tlv8_decoder_decode(decoder, data_type);
         if (tlv) {
             switch(data_type) {
                 case TLV8_DATA_TYPE_INTEGER:
-                    printf("Integer, Type: %d, data_type: %d, value: %4x\n", type, data_type, tlv->data.int32);
+                    printf("Integer, Type: %d, data_type: %d, value: %4llx\n", type, data_type, tlv8_get_integer_value(tlv));
                     break;
                 case TLV8_DATA_TYPE_STRING:
-                    printf("String, Type: %d, data_type: %d, value: %s\n", type, data_type, tlv->data.string);
+                    printf("String, Type: %d, data_type: %d, value: %s\n", type, data_type, tlv8_get_string_value(tlv));
                     break;
                 case TLV8_DATA_TYPE_BYTES:
                     printf("Bytes, Type: %d, data_type: %d, value:\n", type, data_type);
-                    dump_data(tlv->data.bytes, tlv->len, NULL);
+                    dump_buffer(tlv8_get_data_value(tlv), NULL);
                     if (type == 9) {
-                        tlv8_codec *decoder = tlv8_codec_decoder_new(tlv->data.bytes, tlv->len);
-                        uint8_t inner_type = tlv8_codec_decode_peek_type(decoder);
+                        tlv8_decoder_t decoder = tlv8_decoder_new(tlv8_get_data_value(tlv));
+                        uint8_t inner_type = tlv8_decoder_peek_type(decoder);
                         TLV8_DATA_TYPE inner_data_type = data_types[inner_type];
-                        tlv8 *inner_tlv = tlv8_codec_decode_next_tlv(decoder, inner_data_type);
-                        printf("Inner string, Type: %d, value: %s\n", inner_type, inner_tlv->data.string);
+                        tlv8_t inner_tlv = tlv8_decoder_decode(decoder, inner_data_type);
+                        printf("Inner string, Type: %d, value: %s\n", inner_type, tlv8_get_string_value(inner_tlv));
                         tlv8_free(inner_tlv);
-                        tlv8_codec_free(decoder);
+                        tlv8_encoder_free(decoder);
                     }
                     break;
                 default:
@@ -212,5 +193,39 @@ void app_main() {
         }
         tlv8_free(tlv);
     }
-    tlv8_codec_free(full_codec);
+    tlv8_decoder_free(decoder);
+
+    array_t array = tlv8_decode(tlv8_encoder_get_data(full_codec), data_types);
+    for (int i = 0; i < array_count(array); i++) {
+        tlv8_t tlv = array_at(array, i);
+        uint8_t type = tlv8_get_type(tlv);        
+        TLV8_DATA_TYPE data_type = data_types[type];
+        if (tlv) {
+            switch(data_type) {
+                case TLV8_DATA_TYPE_INTEGER:
+                    printf("Integer, Type: %d, data_type: %d, value: %4llx\n", type, data_type, tlv8_get_integer_value(tlv));
+                    break;
+                case TLV8_DATA_TYPE_STRING:
+                    printf("String, Type: %d, data_type: %d, value: %s\n", type, data_type, tlv8_get_string_value(tlv));
+                    break;
+                case TLV8_DATA_TYPE_BYTES:
+                    printf("Bytes, Type: %d, data_type: %d, value:\n", type, data_type);
+                    dump_buffer(tlv8_get_data_value(tlv), NULL);
+                    if (type == 9) {
+                        tlv8_decoder_t decoder = tlv8_decoder_new(tlv8_get_data_value(tlv));
+                        uint8_t inner_type = tlv8_decoder_peek_type(decoder);
+                        TLV8_DATA_TYPE inner_data_type = data_types[inner_type];
+                        tlv8_t inner_tlv = tlv8_decoder_decode(decoder, inner_data_type);
+                        printf("Inner string, Type: %d, value: %s\n", inner_type, tlv8_get_string_value(inner_tlv));
+                        tlv8_free(inner_tlv);
+                        tlv8_encoder_free(decoder);
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }        
+    }
+    array_free(array);
+    tlv8_encoder_free(full_codec);
 }
