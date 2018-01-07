@@ -4,7 +4,7 @@
 #
 
 PROJECT_NAME := esp32-tlv-test
-EXTRA_COMPONENT_DIRS := $(abspath ./../)
+EXTRA_COMPONENT_DIRS := $(abspath ./../) $(abspath ./../../esp32-utils)
 
 include $(IDF_PATH)/make/project.mk
 

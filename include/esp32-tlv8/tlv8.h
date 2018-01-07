@@ -34,12 +34,13 @@ extern "C" {
 #define _TLV8_H
 
 #include <stdint.h>
+#include "mbedtls/bignum.h"
 #include "esp32-utils/utils.h"
 
 #define TLV8_VERSION_MAJ                 0
-#define TLV8_VERSION_MIN                 2
-#define TLV8_VERSION_REV                 1
-#define TLV8_VERSION_STR                 "0.2.1"
+#define TLV8_VERSION_MIN                 3
+#define TLV8_VERSION_REV                 0
+#define TLV8_VERSION_STR                 "0.3.0"
 #define TLV8_VERSION_CHK(maj, min)       ((maj==TLV8_VERSION_MAJ) && (min<=TLV8_VERSION_MIN))
 
 #define TLV8_ERR_OK                     0
@@ -58,7 +59,8 @@ if (( ret = f ) != TLV8_ERR_OK) { \
 typedef enum {
     TLV8_DATA_TYPE_INTEGER,
     TLV8_DATA_TYPE_STRING,
-    TLV8_DATA_TYPE_BYTES
+    TLV8_DATA_TYPE_BYTES,
+    TLV8_DATA_TYPE_MPI
 } TLV8_DATA_TYPE;
 
 struct _tlv8;
@@ -75,11 +77,14 @@ tlv8_t tlv8_new_with_string(uint8_t type, const char *string);
 tlv8_t tlv8_new_with_data(uint8_t type, void *data, int data_len);
 // Create a new TLV8 structure from buffer (type TLV8_DATA_TYPE_BYTES)
 tlv8_t tlv8_new_with_buffer(uint8_t type, buffer_t data);
+// Create a new TLV8 structure from mpi (type TLV8_DATA_TYPE_MPI)
+tlv8_t tlv8_new_with_mpi(uint8_t type, mbedtls_mpi *mpi);
 // Getters
 uint8_t tlv8_get_type(tlv8_t tlv);
 uint64_t tlv8_get_integer_value(tlv8_t tlv);
 const char *tlv8_get_string_value(tlv8_t tlv);
 buffer_t tlv8_get_data_value(tlv8_t tlv);
+mbedtls_mpi *tlv8_get_mpi_value(tlv8_t tlv);
 // Cleanup
 void tlv8_free(void *tlv);
 
@@ -97,6 +102,8 @@ void tlv8_encoder_free(void *codec);
 
 // Create a new TLV8 codec decoder.
 tlv8_decoder_t tlv8_decoder_new(buffer_t data);
+// Detach data buffer (in case it's in use elsewhere) before free
+buffer_t tlv8_decoder_detach_data(tlv8_decoder_t codec);
 // Returns true if there are more tlvs to decode
 int tlv8_decoder_has_next(tlv8_decoder_t codec);
 // Returns the type of the next tlv
@@ -107,8 +114,14 @@ tlv8_t tlv8_decoder_decode(tlv8_decoder_t codec, TLV8_DATA_TYPE type);
 void tlv8_decoder_free(void *codec);
 
 // Convenience methods
+// Deprecated, use tlv8_encode_array
 buffer_t tlv8_encode(const array_t array);
+// Encode tlvs in an array
+buffer_t tlv8_encode_array(const array_t array);
+// Encode tlvs as a list (will free tlvs after encoding)
+buffer_t tlv8_encode_list(int count, ...);
 array_t tlv8_decode(const buffer_t buffer, const uint8_t *mapping);
+tlv8_t tlv8_tlv_of_type(array_t tlvs, uint8_t type);
 
 #endif // _TLV8_H
 #ifdef __cplusplus
