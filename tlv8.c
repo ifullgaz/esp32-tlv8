@@ -258,6 +258,7 @@ buffer_t tlv8_encoder_detach_data(tlv8_encoder_t codec) {
 void tlv8_encoder_free(void *c) {
     tlv8_encoder_t codec = (tlv8_encoder_t)c;
     if (codec) {
+        buffer_free(codec->buffer);
         free(c);
     }
 }
