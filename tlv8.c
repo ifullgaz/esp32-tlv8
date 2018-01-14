@@ -461,6 +461,7 @@ tlv8_t tlv8_decoder_decode(tlv8_decoder_t codec, TLV8_DATA_TYPE type) {
 void tlv8_decoder_free(void *c) {
     tlv8_decoder_t codec = (tlv8_decoder_t)c;
     if (codec) {
+        buffer_free(codec->buffer);
         free(c);
     }
 }

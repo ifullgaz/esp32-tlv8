@@ -39,8 +39,8 @@ extern "C" {
 
 #define TLV8_VERSION_MAJ                 0
 #define TLV8_VERSION_MIN                 3
-#define TLV8_VERSION_REV                 0
-#define TLV8_VERSION_STR                 "0.3.0"
+#define TLV8_VERSION_REV                 1
+#define TLV8_VERSION_STR                 "0.3.1"
 #define TLV8_VERSION_CHK(maj, min)       ((maj==TLV8_VERSION_MAJ) && (min<=TLV8_VERSION_MIN))
 
 #define TLV8_ERR_OK                     0
