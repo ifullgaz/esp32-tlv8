@@ -39,8 +39,8 @@ extern "C" {
 
 #define TLV8_VERSION_MAJ                 0
 #define TLV8_VERSION_MIN                 3
-#define TLV8_VERSION_REV                 1
-#define TLV8_VERSION_STR                 "0.3.1"
+#define TLV8_VERSION_REV                 2
+#define TLV8_VERSION_STR                 "0.3.2"
 #define TLV8_VERSION_CHK(maj, min)       ((maj==TLV8_VERSION_MAJ) && (min<=TLV8_VERSION_MIN))
 
 #define TLV8_ERR_OK                     0
@@ -120,7 +120,7 @@ buffer_t tlv8_encode(const array_t array);
 buffer_t tlv8_encode_array(const array_t array);
 // Encode tlvs as a list (will free tlvs after encoding)
 buffer_t tlv8_encode_list(int count, ...);
-array_t tlv8_decode(const buffer_t buffer, const uint8_t *mapping);
+array_t tlv8_decode(const buffer_t buffer, const TLV8_DATA_TYPE *mapping);
 tlv8_t tlv8_tlv_of_type(array_t tlvs, uint8_t type);
 
 #endif // _TLV8_H

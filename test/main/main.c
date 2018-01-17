@@ -56,7 +56,7 @@ static void dump_codec(tlv8_encoder_t codec, const char *description) {
     dump_buffer(buffer, description);
 }
 
-static const char *big_number_string = 
+static const char *big_number_string =
 "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E08"
 "8A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B"
 "302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9"
@@ -239,7 +239,7 @@ void app_main() {
     tlv8_encoder_free(full_codec);
     for (int i = 0; i < array_count(array); i++) {
         tlv8_t tlv = array_at(array, i);
-        uint8_t type = tlv8_get_type(tlv);        
+        uint8_t type = tlv8_get_type(tlv);
         TLV8_DATA_TYPE data_type = data_types[type];
         if (tlv) {
             switch(data_type) {
@@ -267,7 +267,7 @@ void app_main() {
                 default:
                     break;
             }
-        }        
+        }
     }
     array_free(array);
 }

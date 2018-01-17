@@ -30,7 +30,11 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <math.h>
 #include "esp32-tlv8/tlv8.h"
+#include "esp_log.h"
+
+static const char *TAG = "ESP32-TLV8";
 
 #define min(a,b) ((a) < (b) ? (a) : (b))
 #define TLV8_MAX_DATA_LEN       255
@@ -132,16 +136,15 @@ tlv8_t tlv8_new_with_buffer(uint8_t type, buffer_t data) {
     if (!data) {
         return NULL;
     }
-    return tlv8_new_with_data(type, (void *)buffer_get_data(data), buffer_get_length(data));    
+    return tlv8_new_with_data(type, (void *)buffer_get_data(data), buffer_get_length(data));
 }
 
 // Create a new TLV8 structure from mpi (type TLV8_DATA_TYPE_MPI)
 tlv8_t tlv8_new_with_mpi(uint8_t type, mbedtls_mpi *mpi) {
-    mbedtls_mpi *cpy;
-    if (!(cpy = (mbedtls_mpi *)malloc(sizeof(mbedtls_mpi)))) {
+    mbedtls_mpi *cpy = utils_mpi_new();
+    if (!cpy) {
         return NULL;
     }
-    mbedtls_mpi_init(cpy);
     if (mbedtls_mpi_copy(cpy, mpi)) {
         mbedtls_mpi_free(cpy);
         return NULL;
@@ -193,7 +196,7 @@ mbedtls_mpi *tlv8_get_mpi_value(tlv8_t tlv) {
  * Private interface
  ***********************************************************************************************************/
 static int tlv8_encoded_size(int len) {
-    int num_fragments = len / TLV8_MAX_DATA_LEN + 1;
+    int num_fragments = ceilf((float)len / (float)TLV8_MAX_DATA_LEN);
     int size = (num_fragments << 1) + len; // 2 bytes * num_fragments + tlv->len - Always 1 for type + 1 for size
     return size;
 }
@@ -281,8 +284,8 @@ int tlv8_encoder_encode(tlv8_encoder_t codec, tlv8_t tlv) {
         return TLV8_ERR_TYPE_FORBIDDEN;
     }
     else if (buffer_ensure_available(codec->data, size) != UTILS_ERR_OK) {
-            return TLV8_ERR_ALLOC_FAILED;
-        }
+        return TLV8_ERR_ALLOC_FAILED;
+    }
     tlv8_encoder_write_buffer(codec, tlv);
     codec->type = tlv->type;
     return TLV8_ERR_OK;
@@ -354,7 +357,7 @@ static tlv8_t tlv8_decoder_next_tlv_integer(tlv8_decoder_t codec) {
 static tlv8_t tlv8_decoder_next_tlv_data(tlv8_decoder_t codec) {
     tlv8_t tlv = NULL;
     int size = tlv8_decoder_data_size(codec);
-    int num_fragments = size / TLV8_MAX_DATA_LEN + 1;
+    int num_fragments = ceilf((float)size / (float)TLV8_MAX_DATA_LEN);
     buffer_t data = buffer_new(size);
     for (int i = 0; i < num_fragments; i++) {
         tlv8_decoder_get_type_and_advance(codec);
@@ -380,7 +383,7 @@ static tlv8_t tlv8_decoder_next_tlv_string(tlv8_decoder_t codec) {
 static tlv8_t tlv8_decoder_next_tlv_mpi(tlv8_decoder_t codec) {
     tlv8_t tlv = NULL;
     int size = tlv8_decoder_data_size(codec);
-    int num_fragments = size / TLV8_MAX_DATA_LEN + 1;
+    int num_fragments = ceilf((float)size / (float)TLV8_MAX_DATA_LEN);
     char data[size];
     int offset = 0;
     for (int i = 0; i < num_fragments; i++) {
@@ -390,15 +393,14 @@ static tlv8_t tlv8_decoder_next_tlv_mpi(tlv8_decoder_t codec) {
         offset+= len;
         codec->pos+= len;
     };
-    UTILS_DECLARE_MPI(mpi);
-    if (!(mpi = utils_mpi_new())) {
+    mbedtls_mpi *mpi = utils_mpi_new();
+    if (!mpi) {
         return NULL;
     }
     if (mbedtls_mpi_read_binary(mpi, (const unsigned char *)data, size)) {
         mbedtls_mpi_free(mpi);
         return NULL;
     }
-    
     tlv = tlv8_new(codec->type);
     tlv->data.type = TLV8_DATA_TYPE_MPI;
     tlv->data.mpi = mpi;
@@ -495,7 +497,7 @@ buffer_t tlv8_encode_list(int count, ...) {
     return tlv8_encoder_detach_data(codec);
 }
 
-array_t tlv8_decode(const buffer_t buffer, const uint8_t *mapping) {
+array_t tlv8_decode(const buffer_t buffer, const TLV8_DATA_TYPE *mapping) {
     array_t array = array_new(tlv8_free);
     tlv8_decoder_t decoder = tlv8_decoder_new(buffer);
     while (tlv8_decoder_has_next(decoder)) {
