@@ -92,6 +92,14 @@ static tlv8_t tlv8_new(uint8_t type) {
 /***********************************************************************************************************
  * Public interface
  ***********************************************************************************************************/
+tlv8_t tlv8_new_separator(uint8_t type) {
+    tlv8_t tlv = tlv8_new(type);
+    if (tlv) {
+        tlv->data.type = TLV8_DATA_TYPE_SEPARATOR;
+    }
+    return tlv;
+}
+
 tlv8_t tlv8_new_with_integer(uint8_t type, uint64_t integer) {
     tlv8_t tlv = tlv8_new(type);
     if (tlv) {
@@ -164,7 +172,7 @@ void tlv8_free(void *t) {
         if (tlv->data.type == TLV8_DATA_TYPE_MPI) {
             mbedtls_mpi_free(tlv->data.mpi);
         }
-        else if (tlv->data.type != TLV8_DATA_TYPE_INTEGER) {
+        else if (tlv->data.type != TLV8_DATA_TYPE_SEPARATOR && tlv->data.type != TLV8_DATA_TYPE_INTEGER) {
             buffer_free(tlv->data.data);
         }
         free(t);
@@ -199,6 +207,10 @@ static int tlv8_encoded_size(int len) {
     int num_fragments = ceilf((float)len / (float)TLV8_MAX_DATA_LEN);
     int size = (num_fragments << 1) + len; // 2 bytes * num_fragments + tlv->len - Always 1 for type + 1 for size
     return size;
+}
+
+static void tlv8_encoder_write_buffer_separator(tlv8_encoder_t codec, tlv8_t tlv) {
+    buffer_append(codec->data, &(tlv->type), 1);
 }
 
 static void tlv8_encoder_write_buffer_integer(tlv8_encoder_t codec, tlv8_t tlv) {
@@ -247,6 +259,8 @@ static void tlv8_encoder_write_buffer_mpi(tlv8_encoder_t codec, tlv8_t tlv) {
 
 static void tlv8_encoder_write_buffer(tlv8_encoder_t codec, tlv8_t tlv) {
     switch (tlv->data.type) {
+        case TLV8_DATA_TYPE_SEPARATOR:
+            tlv8_encoder_write_buffer_separator(codec, tlv); break;
         case TLV8_DATA_TYPE_INTEGER:
             tlv8_encoder_write_buffer_integer(codec, tlv); break;
         case TLV8_DATA_TYPE_STRING:
@@ -341,6 +355,11 @@ cleanup:
     // Restore initial pointer to type of TLV
     codec->pos = start_pos;
     return size;
+}
+
+static tlv8_t tlv8_decoder_next_tlv_separator(tlv8_decoder_t codec) {
+    tlv8_decoder_get_type_and_advance(codec);
+    return tlv8_new_separator(codec->type);
 }
 
 static tlv8_t tlv8_decoder_next_tlv_integer(tlv8_decoder_t codec) {
@@ -446,6 +465,8 @@ tlv8_t tlv8_decoder_decode(tlv8_decoder_t codec, TLV8_DATA_TYPE type) {
         return NULL;
     }
     switch (type) {
+        case TLV8_DATA_TYPE_SEPARATOR:
+            return tlv8_decoder_next_tlv_separator(codec);
         case TLV8_DATA_TYPE_INTEGER:
             return tlv8_decoder_next_tlv_integer(codec);
         case TLV8_DATA_TYPE_STRING:

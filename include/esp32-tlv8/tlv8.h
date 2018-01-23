@@ -57,6 +57,7 @@ if (( ret = f ) != TLV8_ERR_OK) { \
 }
 
 typedef enum {
+    TLV8_DATA_TYPE_SEPARATOR,
     TLV8_DATA_TYPE_INTEGER,
     TLV8_DATA_TYPE_STRING,
     TLV8_DATA_TYPE_BYTES,
@@ -69,6 +70,8 @@ typedef struct _tlv8_encoder *tlv8_encoder_t;
 typedef struct _tlv8_decoder *tlv8_decoder_t;
 
 // TLV8 methods
+// Create a new TLV8 separator
+tlv8_t tlv8_new_separator(uint8_t type);
 // Create a new TLV8 structure from integer
 tlv8_t tlv8_new_with_integer(uint8_t type, uint64_t integer);
 // Create a new TLV8 structure from string
